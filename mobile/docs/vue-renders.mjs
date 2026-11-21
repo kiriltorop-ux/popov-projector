@@ -1532,7 +1532,7 @@ return function render(_ctx, _cache) {
 export const stationConversationRender = (Vue => {
 const { resolveComponent: _resolveComponent, createVNode: _createVNode, createElementVNode: _createElementVNode, toDisplayString: _toDisplayString, renderList: _renderList, Fragment: _Fragment, openBlock: _openBlock, createElementBlock: _createElementBlock, createCommentVNode: _createCommentVNode, withModifiers: _withModifiers } = Vue
 
-const _hoisted_1 = ["data-phase", "aria-label"]
+const _hoisted_1 = ["data-guide", "data-phase", "aria-label"]
 const _hoisted_2 = { class: "conversation-header" }
 const _hoisted_3 = ["href", "aria-label"]
 const _hoisted_4 = {
@@ -1564,33 +1564,36 @@ const _hoisted_19 = {
   key: 0,
   class: "conversation-topics"
 }
-const _hoisted_20 = ["aria-label"]
-const _hoisted_21 = ["onClick"]
-const _hoisted_22 = { class: "conversation-composer" }
-const _hoisted_23 = {
+const _hoisted_20 = ["data-playing", "disabled", "onClick"]
+const _hoisted_21 = { class: "station-story-copy" }
+const _hoisted_22 = { id: "station-story-details" }
+const _hoisted_23 = ["aria-label"]
+const _hoisted_24 = ["disabled", "onClick"]
+const _hoisted_25 = { class: "conversation-composer" }
+const _hoisted_26 = {
   class: "station-access",
   role: "status"
 }
-const _hoisted_24 = {
+const _hoisted_27 = {
   class: "station-access",
   role: "status"
 }
-const _hoisted_25 = ["disabled", "onClick"]
-const _hoisted_26 = ["onSubmit"]
-const _hoisted_27 = ["aria-label", "title", "disabled"]
-const _hoisted_28 = ["value", "onInput", "aria-label", "placeholder"]
-const _hoisted_29 = ["aria-label", "disabled"]
-const _hoisted_30 = {
+const _hoisted_28 = ["disabled", "onClick"]
+const _hoisted_29 = ["onSubmit"]
+const _hoisted_30 = ["aria-label", "title", "disabled"]
+const _hoisted_31 = ["value", "onInput", "aria-label", "placeholder", "readonly"]
+const _hoisted_32 = ["aria-label", "disabled"]
+const _hoisted_33 = {
   key: 0,
   class: "station-access"
 }
-const _hoisted_31 = ["href"]
-const _hoisted_32 = {
+const _hoisted_34 = ["href"]
+const _hoisted_35 = {
   key: 2,
   class: "conversation-error",
   role: "alert"
 }
-const _hoisted_33 = {
+const _hoisted_36 = {
   key: 3,
   class: "station-access",
   role: "status"
@@ -1603,9 +1606,9 @@ return function render(_ctx, _cache) {
   return (_openBlock(), _createElementBlock("section", {
     class: "conversation station-conversation",
     "data-mode": "text",
-    "data-guide": "popov",
+    "data-guide": _ctx.guide.id,
     "data-phase": _ctx.active ? 'thinking' : 'ready',
-    "aria-label": _ctx.t('Разговор с Поповым у проектора')
+    "aria-label": _ctx.t(_ctx.isMinin ? 'Разговор с Мининым у проектора' : 'Разговор с Поповым у проектора')
   }, [
     _createElementVNode("header", _hoisted_2, [
       _createElementVNode("a", {
@@ -1682,26 +1685,50 @@ return function render(_ctx, _cache) {
         }), 128 /* KEYED_FRAGMENT */))
       ])
     ], 8 /* PROPS */, _hoisted_8),
-    (_ctx.available)
+    (_ctx.available || (_ctx.ui.token && _ctx.ui.canStory))
       ? (_openBlock(), _createElementBlock("div", _hoisted_19, [
-          _createElementVNode("div", {
-            class: "conversation-topic-list",
-            role: "group",
-            "aria-label": _ctx.t('Темы для разговора')
-          }, [
-            (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.questions, (question) => {
-              return (_openBlock(), _createElementBlock("button", {
-                key: question,
+          (_ctx.ui.token && _ctx.ui.canStory)
+            ? (_openBlock(), _createElementBlock("button", {
+                key: 0,
                 type: "button",
-                onClick: $event => (_ctx.pick(question))
-              }, _toDisplayString(question), 9 /* TEXT, PROPS */, _hoisted_21))
-            }), 128 /* KEYED_FRAGMENT */))
-          ], 8 /* PROPS */, _hoisted_20)
+                class: "station-story",
+                "data-playing": _ctx.storyActive ? 'true' : null,
+                disabled: !_ctx.available || !!_ctx.ui.working || _ctx.ui.recording,
+                "aria-describedby": "station-story-details",
+                onClick: _ctx.playStory
+              }, [
+                _cache[1] || (_cache[1] = _createElementVNode("span", {
+                  class: "station-story-icon",
+                  "aria-hidden": "true"
+                }, null, -1 /* CACHED */)),
+                _createElementVNode("span", _hoisted_21, [
+                  _createElementVNode("strong", null, _toDisplayString(_ctx.t('Расскажи свою историю')), 1 /* TEXT */),
+                  _createElementVNode("small", _hoisted_22, _toDisplayString(_ctx.t(_ctx.storyRussian ? '70 сек. · на русском · 1 запрос' : '70 сек. на проекторе · 1 запрос')), 1 /* TEXT */)
+                ])
+              ], 8 /* PROPS */, _hoisted_20))
+            : _createCommentVNode("v-if", true),
+          (_ctx.available || _ctx.storyActive)
+            ? (_openBlock(), _createElementBlock("div", {
+                key: 1,
+                class: "conversation-topic-list",
+                role: "group",
+                "aria-label": _ctx.t('Темы для разговора')
+              }, [
+                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.questions, (question) => {
+                  return (_openBlock(), _createElementBlock("button", {
+                    key: question,
+                    type: "button",
+                    disabled: !!_ctx.storyActive,
+                    onClick: $event => (_ctx.pick(question))
+                  }, _toDisplayString(question), 9 /* TEXT, PROPS */, _hoisted_24))
+                }), 128 /* KEYED_FRAGMENT */))
+              ], 8 /* PROPS */, _hoisted_23))
+            : _createCommentVNode("v-if", true)
         ]))
       : _createCommentVNode("v-if", true),
-    _createElementVNode("div", _hoisted_22, [
-      _createElementVNode("p", _hoisted_23, _toDisplayString(_ctx.connection), 1 /* TEXT */),
-      _createElementVNode("p", _hoisted_24, _toDisplayString(_ctx.access), 1 /* TEXT */),
+    _createElementVNode("div", _hoisted_25, [
+      _createElementVNode("p", _hoisted_26, _toDisplayString(_ctx.stationStatus), 1 /* TEXT */),
+      _createElementVNode("p", _hoisted_27, _toDisplayString(_ctx.access), 1 /* TEXT */),
       (!_ctx.ui.token && _ctx.valid)
         ? (_openBlock(), _createElementBlock("button", {
             key: 0,
@@ -1709,7 +1736,7 @@ return function render(_ctx, _cache) {
             class: "button primary station-join",
             disabled: !_ctx.ui.online || !!_ctx.ui.working,
             onClick: _ctx.join
-          }, _toDisplayString(_ctx.t('Начать разговор')), 9 /* TEXT, PROPS */, _hoisted_25))
+          }, _toDisplayString(_ctx.t('Начать разговор')), 9 /* TEXT, PROPS */, _hoisted_28))
         : _createCommentVNode("v-if", true),
       (_ctx.ui.token)
         ? (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
@@ -1729,7 +1756,7 @@ return function render(_ctx, _cache) {
                 _createVNode(_component_AppIcon, {
                   markup: _ctx.sign('mic')
                 }, null, 8 /* PROPS */, ["markup"])
-              ], 8 /* PROPS */, _hoisted_27),
+              ], 8 /* PROPS */, _hoisted_30),
               _createElementVNode("input", {
                 ref: "input",
                 id: "question",
@@ -1738,11 +1765,12 @@ return function render(_ctx, _cache) {
                 onInput: $event => (_ctx.draft($event.target.value)),
                 "aria-label": _ctx.t('Ваш вопрос'),
                 placeholder: _ctx.t('Напишите вопрос…'),
+                readonly: !!_ctx.storyActive,
                 maxlength: "500",
                 required: "",
                 autocomplete: "off",
                 enterkeyhint: "send"
-              }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_28),
+              }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_31),
               _createElementVNode("button", {
                 type: "submit",
                 id: "sendQuestion",
@@ -1753,25 +1781,25 @@ return function render(_ctx, _cache) {
                 _createVNode(_component_AppIcon, {
                   markup: _ctx.sign('send')
                 }, null, 8 /* PROPS */, ["markup"])
-              ], 8 /* PROPS */, _hoisted_29)
-            ], 40 /* PROPS, NEED_HYDRATION */, _hoisted_26),
-            _cache[1] || (_cache[1] = _createElementVNode("p", {
+              ], 8 /* PROPS */, _hoisted_32)
+            ], 40 /* PROPS, NEED_HYDRATION */, _hoisted_29),
+            _cache[2] || (_cache[2] = _createElementVNode("p", {
               class: "dictation-hint",
               role: "status",
               hidden: ""
             }, null, -1 /* CACHED */)),
             (_ctx.httpsSetupUrl)
-              ? (_openBlock(), _createElementBlock("p", _hoisted_30, [
-                  _createElementVNode("a", { href: _ctx.httpsSetupUrl }, _toDisplayString(_ctx.t('Подключить микрофон на телефоне')), 9 /* TEXT, PROPS */, _hoisted_31)
+              ? (_openBlock(), _createElementBlock("p", _hoisted_33, [
+                  _createElementVNode("a", { href: _ctx.httpsSetupUrl }, _toDisplayString(_ctx.t('Подключить микрофон на телефоне')), 9 /* TEXT, PROPS */, _hoisted_34)
                 ]))
               : _createCommentVNode("v-if", true)
           ], 64 /* STABLE_FRAGMENT */))
         : _createCommentVNode("v-if", true),
       (_ctx.ui.error)
-        ? (_openBlock(), _createElementBlock("p", _hoisted_32, _toDisplayString(_ctx.ui.error), 1 /* TEXT */))
+        ? (_openBlock(), _createElementBlock("p", _hoisted_35, _toDisplayString(_ctx.ui.error), 1 /* TEXT */))
         : _createCommentVNode("v-if", true),
       (_ctx.ui.working)
-        ? (_openBlock(), _createElementBlock("p", _hoisted_33, _toDisplayString(_ctx.ui.working), 1 /* TEXT */))
+        ? (_openBlock(), _createElementBlock("p", _hoisted_36, _toDisplayString(_ctx.ui.working), 1 /* TEXT */))
         : _createCommentVNode("v-if", true)
     ])
   ], 8 /* PROPS */, _hoisted_1))

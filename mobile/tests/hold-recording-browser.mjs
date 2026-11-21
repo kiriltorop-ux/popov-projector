@@ -1,20 +1,25 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 
-const browser = await chromium.launch({headless: true, channel: 'chrome', args: [
+const browser = await chromium.launch({headless: true, ...(process.env.GG_BROWSER_EXECUTABLE ? {executablePath: process.env.GG_BROWSER_EXECUTABLE} : {channel: 'chrome'}), args: [
   '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
 ]});
 const context = await browser.newContext({ignoreHTTPSErrors: true, permissions: ['microphone'],
   viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
 const base = process.env.GG_TEST_URL || 'https://10.50.187.3:18777/';
 const errors = [], messages = [];
-let recordings = 0, choosers = 0;
+let recordings = 0, choosers = 0, asr = 'ok';
 await context.addInitScript(() => sessionStorage.setItem('gorod-station-token', 'test-browser-token'));
 await context.route('**/api/**', async route => {
   const path = new URL(route.request().url()).pathname;
   if (path.endsWith('/transcribe')) {
     recordings++;
-    assert.ok(route.request().postDataBuffer().length > 500, 'Actual recorded audio must be uploaded');
+    const body = route.request().postDataBuffer();
+    assert.ok(body.length > 500, 'Actual recorded audio must be uploaded');
+    assert.match(body.toString('latin1'), /name="recording"; filename="question.webm"/);
+    assert.match(body.toString('latin1'), /name="language"\r\n\r\nru/);
+    if (asr === 'failure') return route.fulfill({status: 502, json: {error: 'Test ASR unavailable'}});
+    if (asr === 'empty') return route.fulfill({json: {text: ''}});
     return route.fulfill({json: {text: 'Как работает приёмник?'}});
   }
   if (path.endsWith('/question')) messages.push(route.request().postDataJSON().text);
@@ -82,6 +87,18 @@ try {
   await beginTouch(); await page.waitForTimeout(80); await endTouch();
   await page.waitForFunction(() => window.lateStream?.getTracks().every(track => track.readyState === 'ended'));
   assert.equal(recordings, 2, 'Late permission must not start recording after release');
+  await page.locator('#question').fill('Сохранить мой черновик');
+  for (const mode of ['empty', 'failure']) {
+    asr = mode;
+    await mic.focus();
+    await page.keyboard.down('Space');
+    await page.locator('.holding-recording').waitFor();
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await page.locator('.conversation-error').waitFor();
+    assert.equal(await page.locator('#question').inputValue(), 'Сохранить мой черновик');
+  }
+  assert.equal(messages.length, 2, 'Empty and failed recognition must not send questions');
   await page.evaluate(() => navigator.mediaDevices.getUserMedia = async () => {
     throw new DOMException('Denied', 'NotAllowedError');
   });

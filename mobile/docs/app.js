@@ -4,7 +4,7 @@ import { AboutPage, AppHeader, AppNavigation, GuideCatalogue, GuidePage, MapPage
 import {chkalovGuide, gorodovoyGuide, mininGuide} from './historical-guides.mjs';
 import {projectorGuide, popovQuestions, answerPopov} from './popov-guide.mjs';
 import { openQrScanner } from './qr-scanner.mjs?v=guide-flow';
-import { enterStationRoute, saveStationAdmission, StationConversation } from './station.mjs?v=guide-flow';
+import { enterStationRoute, saveStationAdmission, StationConversation } from './station.mjs?v=minin-story';
 import { ConversationPage } from './conversation.mjs?v=guide-flow';
 import { projectionSites } from './projection-map.mjs?v=guide-flow';
 import {cityPhotos} from './city-photos.mjs';
@@ -17,8 +17,9 @@ import {icon} from './icons.mjs?v=river-design';
 import {defaultGuides,initialState,sources} from './data.mjs?v=river-design';
 import {answer,validateState} from './engine.mjs?v=source-style';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const stationMode = document.querySelector('meta[name="gorod-station"]')?.content === 'popov';
-if (stationMode) enterStationRoute();
+const stationId = document.querySelector('meta[name="gorod-station"]')?.content;
+const stationMode = ['popov', 'minin'].includes(stationId);
+if (stationMode) enterStationRoute(stationId);
 let state=initialState(),revision=0,ready=false,busy=false,saveQueue=Promise.resolve();
 const scope=new URL('.',import.meta.url).pathname;
 const draftKey='gg-pages-drafts:'+scope;
@@ -271,7 +272,7 @@ function pageView(page, profile) {
    const original = chatGuide();
    const guide = localizedGuide(original);
    main.dataset.chatGuide = guide.id;
-   if (stationMode && location.hash === '#popov') return h(StationConversation, {key, back});
+   if (stationMode && location.hash === '#' + stationId) return h(StationConversation, {key, back, profile:original});
    return h(ConversationPage, {
     key, guide, back,
     questions: (original === projectorGuide ? popovQuestions : suggestions(original)).map(question => t(question)),
@@ -502,7 +503,7 @@ function openProjectorScanner() {
  openQrScanner(stationMode ? {
   onStationCode(code) {
    saveStationAdmission(code);
-   navigateFlow('#popov');
+   navigateFlow('#' + stationId);
   },
  } : undefined);
 }
@@ -525,7 +526,7 @@ function renderNavigation(page) {
 }
 
 function handleRouteChange(){
- if(stationMode){enterStationRoute();applyPageLanguage();}
+ if(stationMode){enterStationRoute(stationId);applyPageLanguage();}
  photoViewer.close();
  sourcesViewer.close();
  $('#qr-scanner').close();

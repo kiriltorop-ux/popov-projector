@@ -107,11 +107,11 @@ def dynamics(samples, rate, phones, marked):
 
 class SpeechCore:
     """One instance per process, called serially from the synthesis worker."""
-    def __init__(self):
+    def __init__(self, model=MODEL, pace=1.):
         from piper import PiperVoice
         from piper.config import SynthesisConfig
 
-        if not MODEL.is_file():
+        if not model.is_file():
             raise RuntimeError("Установите русский голос с помощью setup.command.")
         voice_options = {}
         import sys
@@ -124,12 +124,12 @@ class SpeechCore:
                 str(ESPEAK_DATA_DIR), short_path, len(short_path)
             ):
                 voice_options["espeak_data_dir"] = short_path.value
-        self.voice = PiperVoice.load(str(MODEL), include_alignments=True, **voice_options)
+        self.voice = PiperVoice.load(str(model), include_alignments=True, **voice_options)
         self.rate = self.voice.config.sample_rate
         if self.rate != 22050:
             raise RuntimeError("Для пульта требуется голос с частотой 22 050 Гц.")
         self.profiles = {
-            name: SynthesisConfig(length_scale=length, noise_scale=noise,
+            name: SynthesisConfig(length_scale=length*pace, noise_scale=noise,
                                   noise_w_scale=width, volume=.82)
             for name, (length, noise, width) in DELIVERY.items()
         }

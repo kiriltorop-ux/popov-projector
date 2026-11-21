@@ -55,3 +55,27 @@ def test_llm_stops_after_three_failed_attempts():
         with pytest.raises(httpx.RemoteProtocolError):
             provider.post("/chat/completions", json={})
     assert len(calls) == 3
+@pytest.mark.parametrize(("language", "question", "expected"), [
+    ("ru", "Кто возглавлял войска ополчения?", "Дмитрий Пожарский"),
+    ("en", "How did you raise money?", "autumn of 1611"),
+    ("zh", "你们何时解放莫斯科？", "一六一二年"),
+    ("ru", "Какая погода на Венере?", "не могу ответить"),
+])
+def test_minin_can_answer_without_cloud_credentials(monkeypatch, language, question, expected):
+    monkeypatch.setenv("LLM_API_KEY", "replace-with-deepseek-key")
+    provider = Provider(guide="minin")
+    with patch.object(provider, "post") as cloud:
+        assert expected in provider.answer(question, [], language)
+    cloud.assert_not_called()
+
+
+
+
+def test_minin_uses_prepared_answer_if_live_provider_fails(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    provider = Provider(guide="minin")
+    with patch.object(provider, "post", side_effect=httpx.ReadTimeout("timed out")) as cloud:
+        assert "Дмитрий Пожарский" in provider.answer("Кто возглавлял ополчение?", [], "ru")
+    messages = cloud.call_args.kwargs["json"]["messages"]
+    assert "Kuzma Minin" in messages[0]["content"]
+    assert "restates the visitor's latest question" in messages[0]["content"]

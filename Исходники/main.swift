@@ -33,6 +33,12 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var avatar: Avatar!
     let stream = StreamAudio()
     var activeID: String?
+    var guide = "popov"
+    var guideName: String { guide == "minin" ? "Минин" : "Попов" }
+    var storyView: NSView?
+    var storyPlayer: AVPlayer?
+    var storyObservers = [NSObjectProtocol]()
+    var storyObservations = [NSKeyValueObservation]()
     var visitorURL: URL?
     var visitorCard: NSView?
     var visitorExpires = 0.0
@@ -190,7 +196,7 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let full = screen != nil && NSScreen.screens.count > 1
         let initial = full ? screen!.frame : NSRect(x:0,y:0,width:800,height:450)
         let out = OutputWindow(contentRect:initial, styleMask:full ? [.borderless] : [.titled,.resizable,.closable,.miniaturizable], backing:.buffered,defer:false)
-        out.title = "Попов · Проверка проекции"; out.backgroundColor = .black; out.isReleasedWhenClosed = false
+        out.title = guideName + " · Проверка проекции"; out.backgroundColor = .black; out.isReleasedWhenClosed = false
         out.delegate=self; out.hasShadow = !full; targetScreen = full ? selected : nil
         if full {
             out.level = NSWindow.Level(rawValue:Int(CGShieldingWindowLevel())+1)
@@ -220,7 +226,7 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func showVisitorCode() {
         visitorCard?.removeFromSuperview()
-        guard let url=visitorURL, let surface=window?.contentView, !stopped,
+        guard let url=visitorURL, let surface=window?.contentView, !stopped, storyView == nil,
               visitorExpires == 0 || Date().timeIntervalSince1970 < visitorExpires,
               let filter=CIFilter(name:"CIQRCodeGenerator") else { return }
         filter.setValue(Data(url.absoluteString.utf8),forKey:"inputMessage")
@@ -232,7 +238,7 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
         card.wantsLayer=true; card.layer?.backgroundColor=NSColor.white.cgColor
         let qr=NSImageView(frame:NSRect(x:10,y:10,width:140,height:140))
         qr.image=NSImage(cgImage:image,size:code.extent.size); qr.imageScaling = .scaleProportionallyUpOrDown
-        let caption=NSTextField(labelWithString:"Спросить Попова")
+        let caption=NSTextField(labelWithString:guide == "minin" ? "Спросить Минина" : "Спросить Попова")
         caption.alignment = .center; caption.textColor = .black
         caption.frame=NSRect(x:3,y:23,width:182,height:18)
         let shortAddress = (url.host ?? "") + (url.port.map { ":" + String($0) } ?? "")
@@ -314,7 +320,96 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func clearAudio() {
         stream.clear(); avatar?.speech(nil); activeID=nil
+        storyObservations.removeAll()
+        storyPlayer?.pause(); storyPlayer = nil
+        for observer in storyObservers { NotificationCenter.default.removeObserver(observer) }
+        storyObservers.removeAll()
+        if let view = storyView {
+            view.removeFromSuperview(); storyView = nil; showVisitorCode()
+        }
         if let token=activity { ProcessInfo.processInfo.endActivity(token); activity=nil }
+    }
+
+    func selectGuide(_ id: String) throws {
+        guard id != guide else { return }
+        let resources = root.appendingPathComponent("Ресурсы")
+        let next = try Avatar(folder:id == "minin" ? resources.appendingPathComponent("Персонажи/minin") : resources,
+                              minin:id == "minin")
+        next.liveFace = { [weak self] in self?.stream.face() }
+        next.blank = stopped
+        guide = id; avatar = next
+        text.stringValue = id == "minin" ? "Здравствуйте. Я Кузьма Минин." : "Здравствуйте. Меня зовут Александр Степанович Попов."
+        window?.title = guideName + " · Проверка проекции"
+        calibrate()
+        (window?.contentView as? SKView)?.presentScene(next)
+    }
+
+    func playStory(id: String) {
+        let url = root.appendingPathComponent("Ресурсы/Рассказы/minin.mp4")
+        guard guide == "minin", activeID == nil, !stopped,
+              let surface=window?.contentView, bench || window?.isVisible == true,
+              FileManager.default.isReadableFile(atPath:url.path) else {
+            send(["command":"failed","id":id]); return
+        }
+        let player = AVPlayer(url:url)
+        player.isMuted = ProcessInfo.processInfo.environment["POPOV_QA_MUTE"] == "1"
+        guard let item = player.currentItem else { send(["command":"failed","id":id]); return }
+        let view = NSView(frame:surface.bounds)
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.black.cgColor
+        view.autoresizingMask = [.width,.height]
+        let layer = AVPlayerLayer(player:player)
+        layer.frame = view.bounds; layer.autoresizingMask = [.layerWidthSizable,.layerHeightSizable]
+        layer.videoGravity = .resizeAspect
+        view.layer?.addSublayer(layer)
+        view.alphaValue = 0
+        surface.addSubview(view)
+        activeID=id; storyView=view; storyPlayer=player
+        activity=ProcessInfo.processInfo.beginActivity(options:[.userInitiated,.idleDisplaySleepDisabled],reason:"Показ истории Минина")
+        var started = false
+        var ending = false
+        func complete(_ result: String) {
+            guard !ending, activeID == id, storyView === view else { return }
+            ending = true
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.28; view.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self=self, self.activeID == id else { return }
+                self.clearAudio()
+                self.send(["command":result,"id":id])
+                self.status.stringValue = result == "finished" ? "Готов к реплике" : "Не удалось воспроизвести историю"
+            })
+        }
+        storyObservers = [
+            NotificationCenter.default.addObserver(forName:.AVPlayerItemDidPlayToEndTime,object:item,queue:.main) { _ in complete("finished") },
+            NotificationCenter.default.addObserver(forName:.AVPlayerItemFailedToPlayToEndTime,object:item,queue:.main) { _ in complete("failed") },
+        ]
+        storyObservations = [
+            item.observe(\.status, options:[.initial,.new]) { item, _ in
+                if item.status == .failed { DispatchQueue.main.async { complete("failed") } }
+            },
+            player.observe(\.timeControlStatus, options:[.new]) { [weak self] player, _ in
+                guard player.timeControlStatus == .playing else { return }
+                DispatchQueue.main.async {
+                    guard let self=self, self.activeID == id, !started, !ending else { return }
+                    started = true
+                    self.send(["command":"started","id":id]); self.status.stringValue="История Минина"
+                }
+            },
+        ]
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.23; view.animator().alphaValue = 1
+        }, completionHandler: { [weak self] in
+            guard let self=self, self.activeID == id, !ending else { return }
+            self.showVisitorCode()
+            player.play()
+        })
+        DispatchQueue.main.asyncAfter(deadline:.now()+8) {
+            if !started { complete("failed") }
+        }
+        DispatchQueue.main.asyncAfter(deadline:.now()+85) { [weak self] in
+            if self?.activeID == id { complete("failed") }
+        }
     }
     func blackout() {
         stopped=true; visitorCard?.removeFromSuperview(); avatar?.flashUntil=0; reference.layer?.backgroundColor=NSColor.black.cgColor; clearAudio(); avatar?.blank=true; editGrid.state = .off; avatar?.calibrating=false
@@ -331,6 +426,10 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case "ready": ready=true; sendButton.isEnabled = !stopped; if !stopped { status.stringValue="Готов к реплике" }
         case "visitors":
             guard let link=msg["url"] as? String, let url=URL(string:link) else {return}
+            if let id = msg["guide"] as? String {
+                do { try selectGuide(id) }
+                catch { status.stringValue=error.localizedDescription; return }
+            }
             visitorURL=url; visitorLink.stringValue=(url.host ?? "")
             visitorExpires=msg["expires_at"] as? Double ?? 0; showVisitorCode()
             if let warning=msg["warning"] as? String, !warning.isEmpty { status.stringValue=warning }
@@ -347,6 +446,12 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
             stopped=false; showVisitorCode(); avatar.blank=false; sendButton.isEnabled=ready; status.stringValue=ready ? "Готов к реплике" : "Загружается голос…"
         case "timing": if let ms=msg["ms"] as? Int { timing.stringValue="От приёма текста до запуска звука: "+String(ms)+" мс" }
         case "error": status.stringValue=msg["message"] as? String ?? "Ошибка"
+        case "story":
+            guard let key=msg["id"] as? String else { return }
+            guard (msg["expiry"] as? Double ?? 0)>Date().timeIntervalSince1970 else {
+                send(["command":"failed","id":key]); return
+            }
+            playStory(id:key)
         case "play":
             guard let key=msg["id"] as? String, let index=msg["index"] as? Int else {return}
             if index > 0 && activeID != key { return }
@@ -363,7 +468,7 @@ final class Station: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     reference.layer?.backgroundColor=NSColor.white.cgColor
                     DispatchQueue.main.asyncAfter(deadline:.now()+0.20) { self.reference.layer?.backgroundColor=NSColor.black.cgColor }
                 }
-                send(["command":"started","id":key]); status.stringValue="Попов говорит"
+                send(["command":"started","id":key]); status.stringValue=guideName+" говорит"
             } catch {
                 clearAudio(); send(["command":"failed","id":key]); status.stringValue=error.localizedDescription
             }

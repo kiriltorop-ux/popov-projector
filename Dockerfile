@@ -5,7 +5,7 @@ RUN pip install --no-cache-dir -r server/requirements.lock && useradd -u 10001 -
 COPY server /app/server
 COPY Исходники /app/Исходники
 COPY mobile/docs /app/mobile/docs
-RUN python -m server.install_denis
+RUN python -m server.install_denis --all && chmod a+r /app/Голос/*.onnx*
 USER popov
 EXPOSE 8000
 CMD ["uvicorn", "server.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--limit-concurrency", "64", "--proxy-headers"]

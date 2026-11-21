@@ -1,6 +1,7 @@
 """Outbound-only station bridge. The museum Mac needs no public inbound port."""
 import base64
 import json
+from urllib.error import HTTPError
 import logging
 import os
 from pathlib import Path
@@ -32,7 +33,7 @@ class Bridge:
         # Same-computer traffic must never be routed through an HTTP proxy.
         self.http = build_opener(ProxyHandler({})) if urlsplit(self.base).hostname in ("127.0.0.1", "localhost", "::1") else build_opener()
         self.pending = {}
-        self.last_url = None
+        self.last_qr = None
 
     def post(self, path, data):
         request = Request(self.base + path, data=json.dumps(data).encode(), headers={
@@ -50,23 +51,36 @@ class Bridge:
                 state = record.get("state", "failed")
             state = "prepared" if state in ("queued", "prepared") else state
             if state != self.pending[key]:
-                self.post("/station/jobs/" + key, {"state": state})
+                try:
+                    self.post("/station/jobs/" + key, {"state": state})
+                except HTTPError as exc:
+                    if exc.code not in (404, 409):
+                        raise
+                    del self.pending[key]
+                    continue
                 self.pending[key] = state
             if state in ("finished", "failed", "cancelled"):
                 del self.pending[key]
         with self.player.lock:
             ready = self.player.ready and not self.player.stopped and not self.player.exit
         data = self.post("/station/poll", {"ready": ready})
-        if data["url"] != self.last_url:
-            self.last_url = data["url"]
-            self.emit({"type": "visitors", "url": data["url"], "expires_at": data["expires_at"], "open": False})
+        qr = (data["url"], data.get("guide", "popov"))
+        if qr != self.last_qr:
+            self.last_qr = qr
+            self.emit({"type": "visitors", "url": data["url"], "expires_at": data["expires_at"],
+                       "guide": qr[1], "open": False})
         job = data.get("job")
         if job:
-            pcm = base64.b64decode(job["pcm"], validate=True)
-            if job.get("sample_rate") != 22050 or not 0 < len(pcm) <= 22050*2*120 or len(pcm) % 2:
-                raise ValueError("Invalid server PCM")
             key = job["id"]
             try:
+                if "story" in job:
+                    self.player.handle({"command": "story", "id": key, "text": job["story"],
+                                        "expiry": job["expiry"]}, internal=True)
+                    self.pending.setdefault(key, None)
+                    return
+                pcm = base64.b64decode(job["pcm"], validate=True)
+                if job.get("sample_rate") != 22050 or not 0 < len(pcm) <= 22050*2*120 or len(pcm) % 2:
+                    raise ValueError("Invalid server PCM")
                 with self.player.lock:
                     # Keep the lock until external audio is attached, before waking the player.
                     self.player.handle({"command": "say", "id": key, "text": job["text"], "expiry": job["expiry"]})

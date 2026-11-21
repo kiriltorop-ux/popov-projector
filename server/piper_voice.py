@@ -1,4 +1,4 @@
-"""The repository's exact Denis voice and phrasing, shared with offline playback."""
+"""Synthesize PCM and time its animation to the actual Piper phonemes."""
 import base64
 from pathlib import Path
 import sys
@@ -9,15 +9,15 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_core():
+def load_core(voice):
     sources = ROOT / "Исходники"
     if str(sources) not in sys.path:
         sys.path.insert(0, str(sources))
     from speech_core import SpeechCore
-    return SpeechCore()
+    return SpeechCore(ROOT/"Голос"/(voice+".onnx"), pace=1.1 if voice == "ru_RU-dmitri-medium" else 1.)
 
 
-def piper_payload(core, text):
+def piper_payload(core, text, voice="ru_RU-denis-medium"):
     from narration import phrases, phrase_gap
     chunks = phrases(text)
     blocks, cues, curves = [], [], []
@@ -47,16 +47,17 @@ def piper_payload(core, text):
             values[mask] = np.interp((frames[mask]-offset)*50, np.arange(len(local[field])), local[field])
         result[field] = values.round(4).tolist()
     return {"pcm": base64.b64encode(b"".join(blocks)).decode(), "track": result,
-            "sample_rate": 22050, "voice": "ru_RU-denis-medium", "alignment": "phonemes"}
+            "sample_rate": 22050, "voice": voice, "alignment": "phonemes"}
 
 
-class DenisVoice:
-    def __init__(self):
+class PiperNarrator:
+    def __init__(self, voice):
+        self.voice = voice
         self.core = None
         self.lock = threading.Lock()
 
     def speech(self, text):
         with self.lock:
             if self.core is None:
-                self.core = load_core()
-            return piper_payload(self.core, text)
+                self.core = load_core(self.voice)
+            return piper_payload(self.core, text, self.voice)

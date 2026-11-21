@@ -68,6 +68,8 @@ class LocalServer:
         load_env(root)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            if os.name != "nt":
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.bind(("0.0.0.0", int(os.getenv("POPOV_LOCAL_PORT", "18776")) if port is None else port))
             actual_port = self.socket.getsockname()[1]
             host = lan_address()
