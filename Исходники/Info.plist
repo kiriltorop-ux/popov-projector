@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>ru.gorodgovorit.popovprojector</string>
+<key>CFBundleName</key><string>Пульт Попова</string>
+<key>CFBundleDisplayName</key><string>Пульт Попова</string>
+<key>CFBundleExecutable</key><string>Projector</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0</string>
+<key>NSLocalNetworkUsageDescription</key><string>Посетители подключаются к пульту по Wi-Fi, чтобы задавать вопросы Попову.</string>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>

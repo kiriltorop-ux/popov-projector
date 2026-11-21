@@ -1,0 +1,6 @@
+numpy==2.5.5
+piper-tts[alignment]==1.8.0
+onnx==1.23.2
+onnxruntime==1.32.0
+imageio-ffmpeg==0.8.1
+pywhispercpp==1.5.1

@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-20T17:10:23.594Z",
+  "base": "http://127.0.0.1:4176/gorod-govorit/",
+  "checks": [
+    "The home page loads just the five guides, their archive photos and fonts",
+    "Source answer and refusal",
+    "Compact guides align and the chat fits at each viewport",
+    "Popov uses the shared text chat and keeps reply sources",
+    "Fast local answers show preparation, then words, then actions",
+    "The text chat retains manual playback for individual answers",
+    "Create avatar, upload, draft and knowledge persist",
+    "Offline answers and saving without API",
+    "Two tabs keep conflicting drafts",
+    "Export, import and validation",
+    "Visitor screen follows selected guide",
+    "Keyboard dialog focus and return",
+    "320 and 390px: all seven screens fit",
+    "Mobile bottom navigation and guide access",
+    "No JavaScript errors"
+  ],
+  "errors": [],
+  "apiRequests": []
+}

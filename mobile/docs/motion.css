@@ -1,0 +1,84 @@
+:root {
+  --motion-tap: 130ms;
+  --motion-change: 220ms;
+  --motion-ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+:where(button),
+.button, .iconbutton, .text-link, .header-icon, #mobileNav a, .conversation :where(button, a) {
+  transition: scale var(--motion-tap) ease-out,
+    color var(--motion-tap) ease-out, background-color var(--motion-tap) ease-out,
+    border-color var(--motion-tap) ease-out;
+}
+:where(button, .button, .iconbutton, .text-link, #mobileNav a):active:not(:disabled) {
+  scale: .97;
+}
+#toast {
+  transition: opacity var(--motion-tap) ease, transform var(--motion-change) var(--motion-ease);
+}
+
+#mobileNav::before {
+  position: absolute;
+  inset-block: var(--dock-padding);
+  inset-inline-start: var(--dock-padding);
+  width: calc((100% - 2 * var(--dock-padding)) / 3);
+  border-radius: 18px;
+  background: var(--glass);
+  box-shadow: inset 0 1px 3px white, 0 2px 7px #5189ac20;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(var(--nav-index, 0) * 100%));
+  transition: transform 260ms var(--motion-ease), opacity var(--motion-tap) ease;
+}
+#mobileNav[data-current]::before { opacity: 1; }
+#mobileNav a.active::before { content: none; }
+#mobileNav a svg {
+  transition: translate var(--motion-change) var(--motion-ease);
+}
+#mobileNav a.active svg { translate: 0 -1px; }
+
+.modal-backdrop {
+  animation: screen-dim-in 160ms ease-out both;
+}
+.modal-card {
+  animation: sheet-in 280ms var(--motion-ease) both;
+}
+@keyframes screen-dim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-in {
+  from { translate: 0 20px; opacity: .75; }
+  to { translate: 0 0; opacity: 1; }
+}
+
+.conversation[data-phase="listening"] .voice-talk {
+  animation: microphone-acknowledge 900ms ease-out 2;
+}
+@keyframes microphone-acknowledge {
+  from { box-shadow: 0 0 0 0 #147dc855; }
+  to { box-shadow: 0 0 0 9px #147dc800; }
+}
+
+.moving-portrait {
+  position: fixed;
+  z-index: 35;
+  overflow: hidden;
+  transform-origin: top left;
+  pointer-events: none;
+}
+.moving-portrait > :is(svg, img) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.portrait-in-motion { visibility: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .moving-portrait { display: none; }
+  .portrait-in-motion { visibility: visible; }
+  :where(button, .button, .iconbutton, .text-link, #mobileNav a):active:not(:disabled) {
+    scale: 1;
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "Small and tall phones: no overflow, readable input, reachable navigation",
+    "Studio: draft survives all three tabs, advanced controls and guide switch",
+    "Mobile material sheet: scroll lock, save reachable, source retained",
+    "Chat: composer fits a short visual viewport and sends without scrolling page",
+    "VisualViewport keyboard event hides navigation and keeps send control above keyboard",
+    "The map shows the five projectors and old route links open it",
+    "Touch targets and reduced motion"
+  ],
+  "errors": []
+}

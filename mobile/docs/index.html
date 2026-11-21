@@ -1,0 +1,19 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content"><meta name="theme-color" content="#d9eaff"><meta name="description" content="Познакомьтесь с Нижним Новгородом: цифровые гиды, ответы с источниками, прогулки и студия собственных персонажей."><link rel="icon" href="./favicon.svg" type="image/svg+xml"><title>Город говорит — ваши цифровые гиды</title><link rel="preload" href="./assets/roboto/Roboto-Regular.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="./design.css?v=mobile-type"><link rel="stylesheet" href="./style.css?v=glass-city"><link rel="stylesheet" href="./conversation.css?v=photo-zoom"><link rel="stylesheet" href="./guides.css?v=guide-motion"><link rel="stylesheet" href="./motion.css?v=glass-city"><link rel="stylesheet" href="./studio.css?v=glass-city"><link rel="stylesheet" href="./vendor/leaflet/leaflet.css"><link rel="stylesheet" href="./mobile.css?v=voice-accessibility"></head><body>
+<a class="skip" href="#main" data-i18n="К содержимому">К содержимому</a><header class="topbar"></header>
+<nav id="mobileNav" aria-label="Разделы сайта" data-i18n-label="Разделы сайта"></nav><div id="workspaceStatus" hidden class="workspace-status"></div><main id="main" tabindex="-1"></main><div id="toast" role="status" aria-live="polite"></div><div id="modal"></div>
+<dialog id="qr-scanner" class="qr-scanner" aria-labelledby="qr-title">
+  <header>
+    <h2 id="qr-title" data-i18n="Сканировать QR-код">Сканировать QR-код</h2>
+    <form method="dialog"><button class="iconbutton qr-close" type="submit" aria-label="Закрыть сканер" data-i18n-label="Закрыть сканер" autofocus>×</button></form>
+  </header>
+  <div class="qr-preview" hidden>
+    <video muted playsinline aria-hidden="true"></video>
+    <div class="qr-frame" aria-hidden="true"></div>
+  </div>
+  <p class="qr-status" role="status" data-i18n="Наведите камеру на QR-код на экране проектора.">Наведите камеру на QR-код на экране проектора.</p>
+  <div class="qr-actions">
+    <button class="button qr-camera" type="button" hidden data-i18n="Включить камеру">Включить камеру</button>
+    <a class="button qr-open" hidden data-i18n="Открыть чат">Открыть чат</a>
+  </div>
+</dialog>
+<script src="./app.js?v=photo-zoom" type="module"></script></body></html>

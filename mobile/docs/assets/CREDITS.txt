@@ -1,0 +1,43 @@
+Фотографии и лицензии
+
+Кремль с Волги (city.jpg): Vityavo, CC0.
+https://commons.wikimedia.org/wiki/File:Nizhny_Novgorod_Kremlin_(view_from_Volga).jpg
+
+Зачатьевская башня (zachatie.jpg): Алексей Трефилов, CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:NN_28-08-2021_22.jpg
+
+Нижне-Волжская набережная (lower-volga.jpg): Алексей Трефилов, CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Lower-Volga_River_embankment_04.jpg
+
+Рождественская церковь (church.jpg): AlexTref871, CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Nizhny_Novgorod_29-04-2024_Nativity_church.jpg
+
+Чкаловская лестница (chkalov.jpg): WildPea, CC0.
+https://commons.wikimedia.org/wiki/File:Чкаловская_лестница._Вид_со_стороны_Нижне-Волжской_набережной.jpg
+
+Лицензия CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+Фотографии уменьшены для сайта; кадрируются при отображении.
+
+Inter — SIL Open Font License, см. Inter-OFL.txt.
+Phosphor Icons — MIT, см. Phosphor-LICENSE.txt.
+Иллюстрации персонажей — условные векторные образы исходного MVP.
+
+Панорама (volga-kremlin.webp) — иллюстрация ImageGen из проекта «Город и реки».
+Подложка маршрутов (route-map.webp) и линия прогулки по кремлю и набережной — © OpenStreetMap contributors, ODbL.
+https://www.openstreetmap.org/copyright
+
+PT Serif — ParaType, SIL Open Font License 1.1 (PT-Serif-OFL.txt).
+
+Образ Попова, положения губ и демонстрация — проект «Проектор Попова». Голос Piper Denis. Происхождение материалов и атрибуция бюста HackSpace Taganrog (CC BY 4.0): https://github.com/antony502189-max/popov-projector/blob/main/CREDITS.md
+
+Портреты на главной (guide-portraits/*.webp): кадрирование, удаление фона, коррекция тона.
+Максим Горький — Bain News Service, 1910, Library of Congress, ggbain.04931. Общественное достояние.
+https://commons.wikimedia.org/wiki/File:Maxim_Gorky.jpg
+Александр Степанович Попов — архивная фотография, автор неизвестен. Общественное достояние.
+https://commons.wikimedia.org/wiki/File:Alexander_Stepanovich_Popov.jpg
+Памятник Кузьме Минину в Нижнем Новгороде — Дина Байбулатова. Фотография и вырезка из неё — CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Минин.jpg
+Валерий Чкалов — Harris & Ewing, Вашингтон, 28 июня 1937 года, Library of Congress, hec.24462. Общественное достояние в США.
+https://commons.wikimedia.org/wiki/File:Chkalov_1937_LOC_hec_22944.jpg
+Городовой — фотография с открытки «Городовой на посту», Санкт-Петербург, начало XX века. Автор неизвестен. Общественное достояние.
+https://commons.wikimedia.org/wiki/File:Gorodovoy.jpg

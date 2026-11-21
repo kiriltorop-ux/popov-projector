@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.app/
+.DS_Store
+*.blend1
+# Earlier local previews. The portable current scene and demo are published.
+/Установка проектора.blend
+/Голос/
+
+# Station configuration and visitor queue
+.env
+station.env
+.server-venv/
+/work/

@@ -1,0 +1,98 @@
+:root{--paper:var(--white);--ink:var(--text);--line:var(--edge);font:16px/1.45 LbchRoboto,-apple-system,sans-serif;color:var(--ink);background:var(--outside)}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}button,input,textarea{font:inherit}button,.file{min-height:44px;cursor:pointer;border:0;border-radius:10px;background:var(--blue);color:white;padding:8px 15px;font-weight:620}button:disabled{opacity:.55;cursor:default}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #369b80;outline-offset:2px}
+main{display:flex;flex-direction:column;max-width:700px;height:100dvh;margin:auto;background:var(--paper)}
+header{display:flex;align-items:center;gap:9px;padding:max(12px,env(safe-area-inset-top)) 12px 12px;border-bottom:1px solid var(--line)}
+h1,h2,p{margin:0}h1{font-size:1.05rem;line-height:1.15}h2{font-size:1.2rem}.back{display:grid;place-items:center;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:12px;width:44px;height:44px;font-size:28px;flex:none}.name{flex:1}.name small,small{font-size:var(--type-caption);color:var(--subtext)}.switch{display:flex;padding:3px;border-radius:10px;background:var(--quiet)}.switch button{min-height:40px;min-width:44px;padding:6px 9px;font-size:var(--type-caption);background:transparent;color:var(--ink)}.switch [aria-pressed=true]{background:var(--blue);color:white}
+.scroll{overflow:auto;flex:1;min-height:0;padding:18px}.identity{display:flex;align-items:center;gap:10px}.identity img{width:46px;height:46px;object-fit:cover;border-radius:13px;background:#ebe4d8}.identity strong,.identity small{display:block}.identity strong{font-size:.9rem}
+#welcome,#away{margin:14px 0;padding:16px;background:var(--surface);border-radius:14px}#welcome p,#away p{margin-bottom:14px}#away video{width:100%;max-height:34dvh;background:var(--night);border-radius:10px}#connect input{width:100%;margin:7px 0 10px;padding:10px;border:1px solid var(--line);border-radius:8px}
+.stage{position:relative;margin:14px 0;text-align:center;border-radius:16px;padding:18px 12px 10px;background:var(--surface)}.stage img{max-width:95%;height:clamp(95px,24dvh,220px);object-fit:contain;display:block;margin:auto}.stage p{background:var(--paper);border-radius:10px;padding:9px;font-size:.9rem}
+ol{padding:0;list-style:none}li{display:flex;align-items:flex-start;flex-direction:column;margin:14px 0;gap:7px;overflow-wrap:anywhere}li strong{align-self:flex-end;padding:9px 12px;border-radius:12px 12px 3px 12px;background:var(--quiet);font-weight:500}li p{padding:12px;border-radius:3px 12px 12px;background:var(--surface)}li button,.suggestions button,.secondary,.file{background:transparent;color:var(--ink);border:1px solid var(--line);font-size:var(--type-caption)}
+.dock{padding:0 14px max(10px,env(safe-area-inset-bottom));background:var(--paper)}.suggestions,.entry,#review>div{display:flex;gap:6px}.suggestions{overflow:auto;padding:6px 0}.suggestions button{flex:none}.entry textarea{flex:1;min-width:0;max-height:100px;padding:11px;border-radius:10px;border:1px solid var(--line);resize:vertical}.entry button{font-size:1.4rem}#remaining{display:block;padding-top:5px}#notice{color:#894521;margin:12px 0}
+#recordPanel{padding:7px 0}#recordPanel button,.file{font-size:var(--type-caption)}.file{display:inline-flex;align-items:center;position:relative}.file input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}#listen{width:100%;height:38px}#review{margin:8px 0}dialog{position:fixed;inset:auto 0 0;margin:0 auto;width:min(100%,680px);padding:20px 20px max(24px,env(safe-area-inset-bottom));border:0;border-radius:18px 18px 0 0;background:var(--paper)}dialog::backdrop{background:#13221d82}dialog>div{display:flex;align-items:center;justify-content:space-between}dialog button{background:transparent;color:var(--ink);font-size:24px}dialog a{display:block;margin:10px 0;color:var(--blue);text-decoration:none;font-weight:620}dialog small{display:block}
+
+[data-mode=voice] .identity,[data-mode=voice] #history{display:none}
+[data-mode=voice] .scroll{display:flex;flex-direction:column}
+[data-mode=voice] .stage{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:200px;padding:20px;background:var(--surface);margin:0}
+[data-mode=voice] .stage img{width:100%;max-width:400px;height:auto;max-height:38dvh;object-fit:contain;object-position:bottom}
+.stage small{padding:6px 12px;background:var(--paper);border-radius:6px;color:var(--blue);margin:4px auto}
+[data-mode=voice] .stage p{width:100%;max-width:480px}
+#app[data-phase=started] .stage img{animation:head-sway 4s ease-in-out infinite alternate;transform-origin:50% 95%}
+@keyframes head-sway{from{transform:rotate(-.6deg)}to{transform:rotate(.6deg)}}
+@media(prefers-reduced-motion:reduce){#app[data-phase=started] .stage img{animation:none}}
+
+/* The station uses the same phone shell as a guide conversation. */
+:root { font: 400 100%/1.4 var(--type); }
+main, dialog { max-width: var(--phone-width); }
+header { padding: max(10px,env(safe-area-inset-top)) 16px 10px; }
+.name { min-width: 0; }
+.name h1 { font: 500 1.25rem/1.2 var(--type); }
+.name small, small { font: 400 var(--type-caption)/1.3 var(--type); color: var(--subtext); }
+.switch { flex: none; padding: 4px; border-radius: 12px; background: var(--track); }
+.switch button { min-height: 36px; border-radius: 8px; font-weight: 500; }
+.switch [aria-pressed=true] { background: white; color: var(--blue); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+.back { color: var(--blue); }
+.scroll { padding: 16px; }
+.identity img { width: 48px; height: 48px; border-radius: 12px; }
+.identity strong { font: 500 1rem/1.25 var(--type); }
+#welcome, #away { background: var(--surface); padding: 20px; border-radius: 20px; margin: 20px 0; }
+#welcome h2, #away h2 { font: 500 1.5rem/1.17 var(--type); margin-bottom: 10px; }
+#away video { margin-bottom: 16px; }
+#connect label { display: block; font: 500 0.875rem/1.29 var(--type); }
+#connect input, .entry textarea { background: white; color: var(--text); font-size: 1rem; }
+#start, #connect button, #again { width: 100%; min-height: 48px; border-radius: 12px; }
+button, .file { font-weight: 500; }
+button:enabled:active { filter: brightness(.94); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); }
+.dock { padding-inline: 16px; }
+.suggestions button { border-color: var(--blue); border-radius: 8px; color: var(--blue); }
+[data-mode=voice] .stage { background: var(--surface); border-radius: 20px; }
+.stage small { color: var(--blue); }
+dialog { background: white; }
+@media (max-width: 350px) {
+  header { gap: 6px; padding-inline: 10px; }
+  .name h1 { font-size: 1.125rem; line-height: 1.2; }
+}
+
+/* The station phone carries the same glass surfaces as the guide's chat. */
+#app { background:var(--glass-sky); }
+#app header, #app .dock { background:var(--glass-float); border-color:var(--glass-edge); }
+#app .back, #app .switch, #welcome, #away, #app .suggestions button, #history li strong,
+#voiceStage p, #app .file, #app .secondary, #sources {
+  background:var(--glass); border:1px solid var(--glass-edge); box-shadow:var(--lift);
+}
+#app .switch { border-radius:16px; }
+#app .switch [aria-pressed=true], #start, #again, #connect button, #record, #decode, #submit {
+  background:var(--glass-action); border:1px solid #effbffb8; box-shadow:var(--action-shadow); color:white; border-radius:14px;
+}
+#app .switch [aria-pressed=true] { border-radius:11px; }
+#app .identity img { background:#d9eafb; }
+#connect input, .entry textarea { background:var(--glass-field); border-color:#aac0d9; }
+#app[data-mode=voice] .stage { background:radial-gradient(ellipse at center,#effaff,#d5e9fb 65%,#c3dbf4); }
+#app .stage p { background:var(--glass-field); }
+#sources { width:min(calc(100% - 24px),var(--phone-width)); bottom:max(12px, env(safe-area-inset-bottom)); background:var(--glass-solid); border-radius:22px; }
+#sources::backdrop { background:#22416452; }
+
+#history li p { align-self:stretch; padding:0; border:0; background:transparent; line-height:1.5; }
+#history li button { display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; background:transparent; color:var(--subtext); }
+
+#settings {
+  margin:14px 0; padding:20px; border:1px solid var(--glass-edge); border-radius:20px;
+  background:var(--glass); box-shadow:var(--lift);
+}
+#stationTitle { margin-bottom:14px; }
+#connectError:not(:empty) { margin-top:10px; color:#943421; }
+.settings-page :is(.switch,.dock), .settings-page .scroll > :not(#settings,#away) { display:none; }
+
+#app[data-mode=voice] .stage { justify-content:center; gap:8px; }
+#app[data-mode=voice] .stage img { min-height:0; max-height:40dvh; }
+#voiceCaption { overflow:auto; overflow-wrap:anywhere; max-height:20dvh; }
+#recordPanel { text-align:center; }
+#notice:empty { display:none; }
+.dock { flex:none; max-height:46dvh; overflow:auto; }
+
+[v-cloak] { display:none; }
+#history li button svg { width:18px; height:18px; }
+
+#connect input, .entry textarea { border-color: var(--control-edge); }
+.file:focus-within { outline: 3px solid var(--blue); outline-offset: 2px; }
+#away details summary { cursor: pointer; padding-block: .4em; }

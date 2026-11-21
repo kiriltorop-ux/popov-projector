@@ -1,0 +1,33 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content"><meta name="theme-color" content="#d9eaff"><title>Александр Попов · Город говорит</title><link rel="icon" href="./favicon.svg"><link rel="stylesheet" href="./design.css?v=glass-city"><link rel="stylesheet" href="./popov.css?v=vue3"><script src="./popov.js?v=vue3" type="module"></script></head>
+<body><div id="popov-root" v-cloak><main id="app" :class="{'settings-page': settings}" :data-mode="ui.mode" :data-phase="ui.phase">
+<header><a class="back" href="./#home" aria-label="К списку гидов">‹</a><div class="name"><h1>Александр Попов</h1><small id="availability" role="status">{{ ui.availability }}</small></div><div class="switch" role="group" aria-label="Режим общения"><button id="chatTab" :aria-pressed="ui.mode === 'text'" @click="selectMode('text')">Чат</button><button id="voiceTab" :aria-pressed="ui.mode === 'voice'" @click="selectMode('voice')">Голос</button></div></header>
+<section class="scroll">
+
+  <section id="welcome" :hidden="ui.logged || settings"><p>Вы у проекции Попова. Можно задать три вопроса. Ответ услышат все рядом с проектором.</p><button id="start" :disabled="ui.sending || !ui.online" @click="start">Начать разговор</button></section>
+
+  <section id="settings" :hidden="!settings" aria-labelledby="stationTitle"><h2 id="stationTitle">Настройки подключения</h2><form id="connect" @submit.prevent="connect"><label for="address">Адрес площадки</label><input id="address" v-model="ui.address" placeholder="192.168.1.10:18776" required><button>Подключиться</button><p id="connectError" role="alert">{{ ui.connectionError }}</p></form></section>
+  <section id="away" :hidden="!settings"><h2>У радиоприёмника</h2><p>Послушайте, как Попов объясняет свой опыт.</p><video controls playsinline preload="none" poster="./assets/popov.webp" src="./assets/popov-demo.mp4" aria-label="Попов объясняет работу приёмника"><track kind="captions" srclang="ru" label="Русский" src="./assets/popov-demo.ru.vtt" default></video><details><summary>Текст ролика</summary><p>Попов показан в полный рост и крупным планом. Он говорит: «Посмотрите на приёмник. Его антенна улавливает радиоволну. В ответ срабатывает реле, замыкается электрическая цепь, и мы слышим звонок».</p></details><p>Для разговора у проектора отсканируйте QR-код на площадке.</p></section>
+  <div class="stage" id="voiceStage" :hidden="ui.mode !== 'voice' || settings"><img src="./assets/popov.webp" alt=""><small id="voiceStatus">{{ ui.voiceStatus }}</small><p id="voiceCaption">{{ ui.caption }}</p></div>
+  <ol id="history" aria-label="Ваш разговор">
+    <li v-for="turn in ui.turns" :key="turn.key">
+      <strong>{{ turn.question }}</strong>
+      <small>{{ turnStatus(turn) }}</small>
+      <p v-if="turn.state === 'finished' && turn.answer">{{ turn.answer }}</p>
+      <button v-if="turn.state === 'finished' && turn.answer?.includes('реле')" type="button" aria-label="Источники" title="Источники" @click="showSources"><app-icon name="book"></app-icon></button>
+    </li>
+  </ol>
+  <p id="notice" role="status">{{ ui.notice }}</p><button id="again" :hidden="!ui.ended" @click="again">Новый разговор</button>
+</section>
+<section class="dock">
+  <form id="compose" :hidden="!ui.logged || ui.ended || ui.active" @submit.prevent="submitQuestion">
+    <div class="suggestions" :hidden="ui.mode === 'voice'"><button v-for="question in suggestions" :key="question" type="button" @click="pickSuggestion(question)">{{ question }}</button></div>
+    <div id="recordPanel" :hidden="ui.mode !== 'voice'"><button id="record" type="button" :hidden="!availableMic" :disabled="ui.requestingMic" @click="recordQuestion">{{ ui.recordLabel }}</button><label id="fileLabel" class="file">Выбрать аудиозапись<input id="upload" type="file" @change="uploadClip" accept="audio/*,video/mp4,video/webm" capture="user"></label>
+      <div id="review" :hidden="!ui.clip"><audio id="listen" :src="ui.clip || null" controls></audio><div><button type="button" id="decode" :disabled="ui.decoding" @click="decodeClip">Распознать</button><button type="button" id="discard" @click="clearClip" class="secondary">Удалить</button></div></div>
+    </div>
+    <div class="entry" id="textEntry" :hidden="ui.mode === 'voice' && !ui.reviewingTranscript"><textarea id="question" v-model="ui.question" rows="1" maxlength="500" aria-label="Ваш вопрос" placeholder="Напишите вопрос…"></textarea><button id="submit" :disabled="ui.sending || !ui.online" aria-label="Отправить вопрос">↑</button></div>
+    <small id="remaining">{{ ui.ended ? '' : 'Можно задать ещё ' + ui.remaining + ' из 3' }}</small>
+  </form>
+</section>
+</main>
+<dialog id="sources" aria-labelledby="sourceTitle"><div><h2 id="sourceTitle">Источники</h2><button id="closeSources" @click="closeSources" aria-label="Закрыть">×</button></div><a target="_blank" rel="noopener" href="https://polymus.ru/collection/detail/pribor-dlya-obnaruzheniya-i-registrirovaniya-elektricheskikh-kolebaniy">Прибор для обнаружения электрических колебаний<small>Политехнический музей ↗</small></a></dialog>
+</div></body></html>
