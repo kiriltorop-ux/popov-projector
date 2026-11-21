@@ -1,9 +1,9 @@
 import { locale, localizedGuide, setLocale, t } from './i18n.mjs';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from './vendor/vue.esm-browser.prod.mjs';
 import { AppIcon, PortraitImage } from './views.mjs?v=guide-flow';
-import { popovQuestions, projectorGuide } from './popov-guide.mjs';
+import { popovQuestions } from './popov-guide.mjs';
 import { sign } from './conversation.mjs?v=guide-flow';
-import { stationConversationRender } from './vue-renders.mjs?v=guide-flow';
+import { stationConversationRender } from './vue-renders.mjs?v=minin-story';
 import {bindHoldRecording} from './hold-recording.mjs';
 import {stationTurnStatus} from './station-status.mjs';
 
@@ -27,6 +27,7 @@ export function saveStationAdmission(code) {
   storage.set('admission', code);
   storage.set('token', '');
   storage.set('pending', '');
+  storage.set('pending-story', '');
 }
 
 function admissionExpiry(code) {
@@ -39,28 +40,26 @@ export function hasCurrentStationAdmission() {
   return /^\d+\.[a-f\d]{64}$/.test(admission) && Date.now() < admissionExpiry(admission);
 }
 
-export function enterStationRoute() {
+export function enterStationRoute(guide = 'popov') {
   const fragment = new URLSearchParams(location.hash.slice(1));
   const legacyEntry = location.pathname.endsWith('/popov.html');
   if (fragment.has('join')) {
     if (fragment.has('lang')) setLocale(fragment.get('lang'));
     saveStationAdmission(fragment.get('join'));
-    history.replaceState(history.state, '', legacyEntry ? './#popov' : './#home');
+    history.replaceState(history.state, '', legacyEntry || guide === 'minin' ? './#' + guide : './#home');
   } else if (!location.hash && legacyEntry) {
-    history.replaceState(history.state, '', './#popov');
+    history.replaceState(history.state, '', './#' + guide);
   }
 }
 
-function turnStatus(turn) {
-  return stationTurnStatus(turn, t);
-}
-
 export const StationConversation = {
-  props: ['back'],
+  props: ['back', 'profile'],
   components: { AppIcon, PortraitImage },
   render: stationConversationRender,
-  setup() {
+  setup(props) {
     const httpsSetupUrl = window.isSecureContext ? '' : `http://${location.hostname}:18778/`;
+    const guide = localizedGuide(props.profile);
+    const isMinin = guide.id === 'minin';
     const admission = storage.get('admission');
     const client = storage.get('client') || randomKey();
     storage.set('client', client);
@@ -70,7 +69,7 @@ export const StationConversation = {
     const ui = reactive({
       token: storage.get('token'), online: null, turns: [], remaining: 3,
       question: pending?.text || storage.get('draft'), working: '', error: '', offline: false,
-      recording: false,
+      recording: false, story: null, canStory: false,
     });
     const transcript = ref(null), input = ref(null), voiceForm = ref(null);
     let dictation;
@@ -91,22 +90,39 @@ export const StationConversation = {
     const clock = ref(Date.now());
     let serverOffset = 0;
     let expiry = admissionExpiry(admission);
-    const active = computed(() => ui.turns.some(turn => !terminal.has(turn.state)));
+    const storyActive = computed(() => ui.story && !terminal.has(ui.story.state));
+    const active = computed(() => storyActive.value || ui.turns.some(turn => !terminal.has(turn.state)));
     const valid = computed(() => /^\d+\.[a-f\d]{64}$/.test(admission) && clock.value < expiry);
     const available = computed(() => ui.token && ui.online && ui.remaining > 0 && !active.value);
     const access = computed(() => {
-      if(ui.token && ui.remaining>0)return t('Осталось вопросов: {count} из 3', {count:ui.remaining});
+      const remaining = isMinin ? 'Осталось запросов: {count} из 3' : 'Осталось вопросов: {count} из 3';
+      if(ui.token && (ui.remaining > 0 || active.value))return t(remaining, {count:ui.remaining});
+      if (isMinin) {
+        if (ui.token) return t('Три запроса использованы. Отсканируйте следующий QR-код.');
+        return t('Отсканируйте свежий QR-код у проектора.');
+      }
       if (!admission) return t('Отсканируйте QR-код на экране Попова, чтобы начать разговор.');
       if (!ui.token && !valid.value) return t('Время доступа истекло. Отсканируйте новый QR-код на экране Попова.');
       if (ui.token && !ui.remaining && !active.value) return t('Три вопроса использованы. Для нового разговора отсканируйте следующий QR-код.');
       if (!ui.token) return t('Ответ прозвучит у проектора. За один разговор можно задать три вопроса.');
-      return t('Осталось вопросов: {count} из 3', {count:ui.remaining});
+      return t(remaining, {count:ui.remaining});
     });
     const connection = computed(() => {
       if (ui.offline) return t('Связь с площадкой прервана');
       if (ui.online === null) return t('Проверяем связь…');
       return ui.online ? t('Проектор на связи') : t('Проектор не на связи');
     });
+    const storyStatus = computed(() => ({
+      queued: t('Готовим показ…'),
+      delivered: t('Готовим показ…'),
+      prepared: t('Готовим показ…'),
+      started: t('История идёт на проекторе'),
+      finished: t(ui.remaining ? 'История завершилась. Можно задать вопрос.' : 'История завершилась.'),
+      failed: t('Не удалось показать историю. Можно повторить.'),
+      cancelled: t('Показ остановлен. Можно повторить.'),
+    })[ui.story?.state] || '');
+
+    const stationStatus = computed(() => (ui.online || !storyActive.value) && storyStatus.value || connection.value);
 
     const life = new AbortController();
     let timer, ticker, poll;
@@ -138,6 +154,9 @@ export const StationConversation = {
       if (!data.turns) return;
       ui.remaining = data.remaining;
       ui.turns = data.turns;
+      ui.story = data.story;
+      ui.canStory = data.can_story === true;
+      if (ui.story?.key === storage.get('pending-story')) storage.set('pending-story', '');
       if (pending && data.turns.some(turn => turn.key === pending.key)) {
         if (ui.question.trim() === pending.text) draft('');
         pending = null;
@@ -160,6 +179,8 @@ export const StationConversation = {
         if (request.signal.aborted || life.signal.aborted) return;
         if (err.status === 401) {
           storage.set('token', ui.token = '');
+          ui.story = null;
+          ui.canStory = false;
           ui.error = t(err.message);
         } else {
           ui.online = false;
@@ -226,6 +247,16 @@ export const StationConversation = {
       draft(turn.question);
       void submit();
     }
+    function playStory() {
+      if (!ui.canStory || !available.value || ui.recording || ui.working) return;
+      const key = storage.get('pending-story') || randomKey();
+      storage.set('pending-story', key);
+      return perform(t('Готовим показ…'), async () => {
+        const data = await api('story', {key});
+        storage.set('pending-story', '');
+        accept(data);
+      });
+    }
 
     watch(() => ui.turns.map(turn => [turn.key, turn.answer, turn.state, turn.ahead, turn.error]).flat().join(';'), () => {
       const log = transcript.value;
@@ -254,11 +285,13 @@ export const StationConversation = {
       clearTimeout(timer);
       clearInterval(ticker);
     });
-    return {ui, sign, t, transcript, input, voiceForm, active, available, valid, access, connection,
-      guide: localizedGuide(projectorGuide), questions: popovQuestions.map(question => t(question)), httpsSetupUrl, turnStatus, draft, pick, join, submit, retry};
+    return {ui, sign, t, transcript, input, voiceForm, active, available, valid, access, stationStatus,
+      guide, isMinin, storyActive, storyRussian: locale() !== 'ru', playStory,
+      questions: isMinin ? guide.docs.map(doc => doc.title) : popovQuestions.map(question => t(question)),
+      httpsSetupUrl, turnStatus: turn => stationTurnStatus(turn, t, guide.id), draft, pick, join, submit, retry};
   },
-  template: `<section class="conversation station-conversation" data-mode="text" data-guide="popov"
-    :data-phase="active ? 'thinking' : 'ready'" :aria-label="t('Разговор с Поповым у проектора')">
+  template: `<section class="conversation station-conversation" data-mode="text" :data-guide="guide.id"
+    :data-phase="active ? 'thinking' : 'ready'" :aria-label="t(isMinin ? 'Разговор с Мининым у проектора' : 'Разговор с Поповым у проектора')">
     <header class="conversation-header">
       <a :href="back" data-flow-back class="conversation-back round-control" :aria-label="t('Назад')"><AppIcon name="caret" /></a>
       <div class="conversation-avatar" aria-hidden="true">
@@ -280,13 +313,22 @@ export const StationConversation = {
         </template>
       </div>
     </div>
-    <div v-if="available" class="conversation-topics">
-      <div class="conversation-topic-list" role="group" :aria-label="t('Темы для разговора')">
-        <button v-for="question in questions" :key="question" type="button" @click="pick(question)">{{ question }}</button>
+    <div v-if="available || (ui.token && ui.canStory)" class="conversation-topics">
+      <button v-if="ui.token && ui.canStory" type="button" class="station-story"
+        :data-playing="storyActive ? 'true' : null" :disabled="!available || !!ui.working || ui.recording"
+        aria-describedby="station-story-details" @click="playStory">
+        <span class="station-story-icon" aria-hidden="true"></span>
+        <span class="station-story-copy">
+          <strong>{{ t('Расскажи свою историю') }}</strong>
+          <small id="station-story-details">{{ t(storyRussian ? '70 сек. · на русском · 1 запрос' : '70 сек. на проекторе · 1 запрос') }}</small>
+        </span>
+      </button>
+      <div v-if="available || storyActive" class="conversation-topic-list" role="group" :aria-label="t('Темы для разговора')">
+        <button v-for="question in questions" :key="question" type="button" :disabled="!!storyActive" @click="pick(question)">{{ question }}</button>
       </div>
     </div>
     <div class="conversation-composer">
-      <p class="station-access" role="status">{{ connection }}</p>
+      <p class="station-access" role="status">{{ stationStatus }}</p>
       <p class="station-access" role="status">{{ access }}</p>
       <button v-if="!ui.token && valid" type="button" class="button primary station-join"
         :disabled="!ui.online || !!ui.working" @click="join">{{ t('Начать разговор') }}</button>
@@ -294,7 +336,7 @@ export const StationConversation = {
         <form ref="voiceForm" class="conversation-form" id="askForm" @submit.prevent="submit">
           <button type="button" class="round-control conversation-dictate" :aria-label="t('Зажмите, чтобы записать вопрос')" :title="t('Зажмите, чтобы записать вопрос')" :disabled="!available || !!ui.working"><AppIcon :markup="sign('mic')" /></button>
           <input ref="input" id="question" name="question" :value="ui.question" @input="draft($event.target.value)" :aria-label="t('Ваш вопрос')"
-            :placeholder="t('Напишите вопрос…')" maxlength="500" required autocomplete="off" enterkeyhint="send">
+            :placeholder="t('Напишите вопрос…')" :readonly="!!storyActive" maxlength="500" required autocomplete="off" enterkeyhint="send">
           <button type="submit" id="sendQuestion" class="round-control conversation-send" :aria-label="t('Отправить вопрос')"
             :disabled="!available || !ui.question.trim() || !!ui.working || ui.recording"><AppIcon :markup="sign('send')" /></button>
         </form>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 
-const browser = await chromium.launch({headless: true, channel: 'chrome'});
+const browser = await chromium.launch({headless: true, ...(process.env.GG_BROWSER_EXECUTABLE ? {executablePath: process.env.GG_BROWSER_EXECUTABLE} : {channel: 'chrome'})});
 const base = process.env.GG_TEST_URL || 'http://10.50.187.3:18776/';
 const pages = [], errors = [];
 const turns = [0, 1, 2].map(i => ({key: `question-${i}`, question: `Вопрос посетителя ${i + 1}`,

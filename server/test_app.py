@@ -50,9 +50,9 @@ def payload():
 
 
 @contextmanager
-def running():
+def running(guide="popov"):
     provider = FakeProvider()
-    app = create_app(":memory:", provider, "q"*32, "s"*32, "http://127.0.0.1:8000")
+    app = create_app(":memory:", provider, "q"*32, "s"*32, "http://127.0.0.1:8000", guide=guide)
     with TestClient(app) as client:
         client.station = {"Authorization": "Bearer " + "s"*32}
         client.provider = provider
@@ -115,6 +115,64 @@ def test_queue_waits_one_second_after_audio_finishes():
             second = client.post("/station/poll", headers=client.station,
                                  json={"ready": True}).json()["job"]
         assert second["id"] != first["id"]
+
+
+def test_minin_story_shares_quota_and_playback_queue_with_questions():
+    with running("minin") as c:
+        user = start(c)
+        other = start(c, identity="second-browser-identity")
+
+        def story(key, headers=user):
+            return c.post("/api/story", headers=headers, json={"key": key})
+
+        def ack(job, state):
+            result = c.post("/station/jobs/"+job["id"], headers=c.station, json={"state": state})
+            assert result.status_code == 200, result.text
+
+        assert c.get("/popov.html").text.count('name="gorod-station" content="minin"') == 1
+        assert story("story-no-auth", {}).status_code == 401
+        first = story("story-first")
+        assert first.status_code == 200
+        assert first.json()["story"] == {"key": "story-first", "state": "queued"}
+        assert first.json()["remaining"] == 2
+        assert first.json()["turns"] == []
+        retry = story("story-first").json()
+        assert retry["story"] == first.json()["story"] and retry["remaining"] == 2
+        assert len(c.app.state.store.rows("SELECT id FROM jobs")) == 1
+        assert story("story-other", other).status_code == 409
+        assert ask(c, user).status_code == 409
+        failed = wait_job(c)
+        assert failed["story"] == "minin" and "pcm" not in failed
+        ack(failed, "failed")
+        assert c.get("/api/session", headers=user).json()["remaining"] == 3
+
+        assert story("story-second").status_code == 200
+        film = wait_job(c)
+        ack(film, "prepared")
+        ack(film, "started")
+        ack(film, "finished")
+        ack(film, "finished")
+        result = c.get("/api/session", headers=user).json()
+        assert result["remaining"] == 2 and result["story"]["state"] == "finished"
+        assert not c.provider.calls
+        for index in range(2):
+            assert ask(c, user, key=f"question-{index}").status_code == 200
+            answer = wait_job(c)
+            assert "story" not in answer and "pcm" in answer
+            ack(answer, "started")
+            ack(answer, "finished")
+        assert c.provider.calls[0][1] == []
+        assert len(c.provider.calls[2][1]) == 1
+        assert c.get("/api/session", headers=user).json()["remaining"] == 0
+        assert story("story-fourth").status_code == 409
+        assert ask(c, user, key="question-extra").status_code == 409
+
+
+def test_popov_keeps_its_question_only_station():
+    with running() as c:
+        user = start(c)
+        assert c.post("/api/story", headers=user, json={"key": "not-for-popov"}).status_code == 404
+        assert not c.get("/api/session", headers=user).json()["can_story"]
 
 
 def test_full_question_speech_ack_and_history():

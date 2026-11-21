@@ -10,7 +10,8 @@ enum FrameExport {
               let duration = data["seconds"] as? Double else { throw CocoaError(.fileReadCorruptFile) }
         let track = try SpeechTrack(data)
         let resources = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("Ресурсы")
-        let avatar = try Avatar(folder:resources)
+        let minin = data["guide"] as? String == "minin"
+        let avatar = try Avatar(folder:minin ? resources.appendingPathComponent("Персонажи/minin") : resources, minin:minin)
         let rect = NSRect(x:0,y:0,width:320,height:720)
         let window = NSWindow(contentRect:rect,styleMask:.borderless,backing:.buffered,defer:false)
         let view = SKView(frame:rect)

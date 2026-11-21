@@ -1,4 +1,5 @@
 """Prepare local-host mode while preserving existing provider credentials."""
+import os
 from pathlib import Path
 import secrets
 import sys
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     if "--check" in sys.argv:
         values = dict(line.split("=", 1) for line in (root / ".env").read_text(encoding="utf-8").splitlines() if "=" in line and not line.startswith("#"))
         key = values.get("LLM_API_KEY", "").strip().strip('"\'')
-        if not key or key.startswith("replace-"):
+        guide = os.getenv("POPOV_GUIDE", values.get("POPOV_GUIDE", "popov")).strip().strip('"\'')
+        if guide != "minin" and (not key or key.startswith("replace-")):
             print("Set LLM_API_KEY in .env before starting the projector.")
             raise SystemExit(1)

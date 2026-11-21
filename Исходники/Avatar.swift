@@ -64,8 +64,10 @@ final class Avatar: SKScene {
     private var lastSize = CGSize.zero
     private var cueIndex = 0
     private var lastSpeechTime = -1.0
+    private let aspect: CGFloat
 
-    init(folder: URL) throws {
+    init(folder: URL, minin: Bool = false) throws {
+        aspect = minin ? 2.0/3.0 : 640.0/1440.0
         super.init(size: CGSize(width: 960, height: 540))
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -77,7 +79,8 @@ final class Avatar: SKScene {
             if pose == "blink" || pose == "brow" {
                 let mask = NSImage(size: image.size)
                 mask.lockFocus()
-                let band = CGRect(x: 0, y: image.size.height*0.87, width: image.size.width, height: image.size.height*0.065)
+                let band = CGRect(x: 0, y: image.size.height*(minin ? 0.902 : 0.87),
+                                  width: image.size.width, height: image.size.height*(minin ? 0.038 : 0.065))
                 image.draw(in: band, from: band, operation: .copy, fraction: 1)
                 mask.unlockFocus()
                 layerImage = mask
@@ -168,7 +171,7 @@ final class Avatar: SKScene {
         grid.isHidden = blank || !calibrating
         guard !blank else { return }
         if size != lastSize { makeGrid(); lastSize = size }
-        let h = size.height * heightFraction, w = h * 640/1440
+        let h = size.height * heightFraction, w = h * aspect
         actor.position = CGPoint(x:(size.width-w)/2 + shiftX*size.width, y:(size.height-h)/2 + shiftY*size.height)
         if secs < lastSpeechTime { cueIndex = 0 }
         lastSpeechTime = secs
@@ -189,8 +192,8 @@ final class Avatar: SKScene {
             let x = Double(lattice[i].x), y = Double(lattice[i].y)
             let upper = max(0,(y-0.24)/0.76)
             let neck = max(0,min(1,(y-0.78)/0.13))
-            let dx = sin(body)*upper*upper*2.25 + sin(head)*max(0,y-0.80)*2.25
-            let dy = -(x-0.5)*(sin(body)*upper + sin(head)*neck)/2.25
+            let dx = (sin(body)*upper*upper + sin(head)*max(0,y-0.80))/Double(aspect)
+            let dy = -(x-0.5)*(sin(body)*upper + sin(head)*neck)*Double(aspect)
             dest[i] = SIMD2(Float(x+dx), Float(y+dy))
         }
         let warp = SKWarpGeometryGrid(columns:columns, rows:rows, sourcePositions:lattice,destinationPositions:dest)

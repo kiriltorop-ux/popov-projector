@@ -92,6 +92,12 @@ class Player:
             try:
                 if time.time() > expiry: raise ValueError("Истёк срок команды")
                 record = self.history[key]
+                if record.get("story"):
+                    with self.lock:
+                        if self.active == key:
+                            record.update(state="prepared", chunks=1, played_chunks=0)
+                            output(dict(type="story", id=key, expiry=expiry, guide=record["story"]))
+                    continue
                 external = record.pop("external", None)
                 chunks = [text] if external else phrases(text)
                 for index, phrase in enumerate(chunks):
@@ -189,8 +195,10 @@ class Player:
                     else:
                         record["ended_at"] = time.monotonic()
                         self.active = None
-            elif cmd in ("say", "ask"):
+            elif cmd in ("say", "ask") or (cmd == "story" and internal):
                 speech = msg.get("text")
+                if cmd == "story" and speech != "minin":
+                    raise ValueError("Неизвестный рассказ")
                 if not isinstance(speech, str) or not speech.strip() or len(speech)>(400 if cmd=="ask" else MAX_TEXT):
                     raise ValueError("Нужен текст до 32 000 знаков или вопрос до 400 знаков")
                 key = key or str(uuid.uuid4())
@@ -199,6 +207,8 @@ class Player:
                     if self.history[key]["digest"] != digest: raise ValueError("Этот id уже занят другой репликой")
                     return dict(id=key,state=self.history[key]["state"])
                 if not self.ready or self.stopped: raise ValueError("Проигрыватель не готов или остановлен")
+                if cmd == "story" and (self.tasks or self.active):
+                    raise ValueError("Проигрыватель занят")
                 interrupt = msg.get("interrupt") is True
                 if not interrupt and len(self.tasks) >= 5: raise ValueError("Очередь заполнена")
                 expiry = float(msg.get("expiry", time.time()+90))
@@ -213,7 +223,8 @@ class Player:
                     self.cancel()
                     output(dict(type="interrupt"))
                 self.tasks.append((key,speech.strip(),expiry,received))
-                self.history[key] = dict(state="queued",digest=digest,received=received)
+                self.history[key] = dict(state="queued",digest=digest,received=received,
+                                         story=speech if cmd=="story" else None)
                 if len(self.history)>1024: self.history.popitem(last=False)
                 self.lock.notify_all()
                 return dict(id=key,state="queued")

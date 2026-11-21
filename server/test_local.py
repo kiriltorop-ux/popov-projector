@@ -88,3 +88,23 @@ def test_same_computer_real_http_and_projector_bridge(monkeypatch, tmp_path):
     finally:
         api.close()
     assert not api.thread.is_alive()
+
+
+def test_local_server_restarts_on_the_same_port(monkeypatch, tmp_path):
+    monkeypatch.setenv("QR_SECRET", "q"*32)
+    monkeypatch.setenv("STATION_KEY", "s"*32)
+    monkeypatch.setenv("POPOV_LAN_HOST", "127.0.0.1")
+    monkeypatch.setenv("DATABASE", ":memory:")
+    monkeypatch.delenv("POPOV_LOCAL_PUBLIC_URL", raising=False)
+    api = LocalServer(tmp_path, port=0, provider=FakeProvider())
+    port = api.socket.getsockname()[1]
+    with httpx.Client(trust_env=False) as client:
+        try:
+            assert client.get(api.bridge_url + "/health").is_success
+        finally:
+            api.close()
+    restarted = LocalServer(tmp_path, port=port, provider=FakeProvider())
+    try:
+        assert restarted.bridge_url == f"http://127.0.0.1:{port}"
+    finally:
+        restarted.close()

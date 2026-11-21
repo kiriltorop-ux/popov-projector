@@ -109,8 +109,10 @@ class Projector:
         from PIL import Image, ImageTk
         self.tk, self.Image, self.ImageTk = tk, Image, ImageTk
         self.host = host
+        self.guide = os.getenv("POPOV_GUIDE", "popov")
+        self.guide_name = "Минин" if self.guide == "minin" else "Попов"
         self.root = tk.Tk()
-        self.root.title("Попов · Проекция")
+        self.root.title(self.guide_name+" · Проекция")
         self.root.configure(bg="black")
         screen_w, screen_h = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         self.root.geometry(f"{max(480, screen_w//2)}x{max(550, screen_h-85)}+0+0")
@@ -122,11 +124,14 @@ class Projector:
         self.canvas = tk.Canvas(self.root, bg="black", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         names = ("rest", "open", "soft", "round", "wide", "teeth", "hush", "reduced", "blink", "brow")
-        originals = {name: Image.open(ROOT/"Ресурсы"/(name+".png")).convert("RGBA") for name in names}
+        folder = ROOT/"Ресурсы"
+        if self.guide == "minin":
+            folder /= "Персонажи/minin"
+        originals = {name: Image.open(folder/(name+".png")).convert("RGBA") for name in names}
         bounds = originals["rest"].getbbox()
         self.images = {name: img.crop(bounds) for name, img in originals.items()}
-        self.eye_band = ((originals["rest"].height*.065-bounds[1])/self.images["rest"].height,
-                         (originals["rest"].height*.13-bounds[1])/self.images["rest"].height)
+        band = (.06, .10) if self.guide == "minin" else (.065, .13)
+        self.eye_band = tuple((originals["rest"].height*y-bounds[1])/self.images["rest"].height for y in band)
         self.motion = Motion()
         self.motion_clock = time.perf_counter()
         self.cached = {}
@@ -136,6 +141,7 @@ class Projector:
         self.qr_item = self.canvas.create_image(0, 0)
         self.qr_url, self.qr_until, self.qr_image = "", 0, None
         self.track, self.began, self.current = None, 0, None
+        self.story = None
         self.status = "Запускается сервер…"
         self.closing = False
         self.controls = None
@@ -158,7 +164,7 @@ class Projector:
             return
         tk = self.tk
         self.controls = tk.Toplevel(self.root)
-        self.controls.title("Попов · Тестирование")
+        self.controls.title(self.guide_name+" · Тестирование")
         self.controls.configure(bg="#e8f2ff")
         self.controls.geometry("380x280+40+50")
         tk.Label(self.controls, text="Тестирование проекции", bg="#e8f2ff", fg="#163b63", font=("Segoe UI", 16, "bold")).pack(pady=(24,12))
@@ -183,6 +189,22 @@ class Projector:
         if self.current is not None or job["expiry"] <= time.time():
             self.host.state(key, "failed")
             return
+        if "story" in job:
+            path = ROOT/"Ресурсы/Рассказы/minin.mp4"
+            if job["story"] != self.guide or self.guide != "minin" or not path.is_file():
+                self.host.state(key, "failed")
+                return
+            from .story_video import StoryVideo
+            try:
+                self.story = StoryVideo(path)
+            except OSError:
+                self.host.state(key, "failed")
+                return
+            self.current = key
+            self.story_requested, self.began = time.perf_counter(), 0
+            self.story_next = self.story_image = None
+            self.status = "Готовим показ…"
+            return
         try:
             audio = wav_bytes(base64.b64decode(job["pcm"], validate=True), job.get("sample_rate"))
         except Exception:
@@ -191,18 +213,73 @@ class Projector:
         self.current = key
         self.track = job["track"]
         self.began = time.perf_counter()
-        self.status = "Попов говорит"
+        self.status = self.guide_name+" говорит"
         def sound():
             import winsound
             try:
                 # Synchronous WinMM playback keeps the WAV bytes alive until audio ends.
                 self.host.state(key, "started")
                 winsound.PlaySound(audio, winsound.SND_MEMORY | winsound.SND_NODEFAULT)
-                self.host.state(key, "finished" if not self.closing else "cancelled")
+                state = "finished" if not self.closing else "cancelled"
             except Exception:
-                self.host.state(key, "failed")
-            self.host.inbox.put(("ended", key))
+                state = "failed"
+            self.host.inbox.put(("ended", (key, state)))
         threading.Thread(target=sound, daemon=True).start()
+
+    def end_story(self, state):
+        import winsound
+        winsound.PlaySound(None, 0)
+        self.story.close()
+        self.story = self.story_next = self.story_image = None
+        self.host.state(self.current, state)
+        self.current = None
+        self.status = "Готов к разговору" if state == "finished" else "Не удалось воспроизвести историю"
+
+    def story_frame(self, now, width, height):
+        """Return the video frame or the avatar opacity for either transition."""
+        story = self.story
+        if story.error or now-self.story_requested > 85:
+            self.end_story("failed")
+            return None, 1.
+        if not story.info:
+            return None, 1.
+        if not self.began:
+            import winsound
+            try:
+                winsound.PlaySound(str(story.audio), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            except RuntimeError:
+                self.end_story("failed")
+                return None, 1.
+            self.began = now
+            self.host.state(self.current, "started")
+            self.status = "История Минина"
+        elapsed = now-self.began
+        duration = story.info["duration"]
+        if elapsed >= duration and story.eof:
+            self.end_story("finished")
+            return None, 1.
+        target = int(elapsed*story.info["fps"])
+        while True:
+            if self.story_next is None:
+                try:
+                    self.story_next = story.frames.get_nowait()
+                except queue.Empty:
+                    break
+            index, data = self.story_next
+            if index > target:
+                break
+            self.story_image = data
+            self.story_next = None
+        if elapsed < .20:
+            return None, max(0., 1-elapsed/.20)
+        if elapsed > duration-.25:
+            return None, min(1., (elapsed-duration+.25)/.25)
+        if self.story_image is None:
+            return None, 0.
+        image = self.Image.frombytes("RGB", story.info["size"], self.story_image)
+        scale = min(width/image.width, height/image.height)
+        image = image.resize((round(image.width*scale), round(image.height*scale)), self.Image.Resampling.BILINEAR)
+        return image, 0.
 
     def frame(self):
         if self.closing:
@@ -219,12 +296,26 @@ class Projector:
                     self.status = "Готов к разговору"
             elif kind == "play":
                 self.play(data)
-            elif kind == "ended" and data == self.current:
-                self.current = self.track = None
-                self.status = "Готов к разговору"
+            elif kind == "ended":
+                key, state = data
+                if key == self.current:
+                    self.current = self.track = None
+                    self.host.state(key, state)
+                    self.status = "Готов к разговору"
             elif kind == "error":
                 self.status = data
         width, height = max(420, self.canvas.winfo_width()), max(440, self.canvas.winfo_height())
+        if self.story:
+            movie, opacity = self.story_frame(frame_started, width, height)
+            if movie is not None:
+                self.actor_photo = self.ImageTk.PhotoImage(movie)
+                self.canvas.itemconfigure(self.actor, image=self.actor_photo)
+                self.canvas.coords(self.actor, width/2, height/2)
+                self.canvas.itemconfigure(self.qr_item, state="hidden")
+                self.finish_frame(frame_started)
+                return
+        else:
+            opacity = 1.
         layout = projection_layout(width, height, self.images["rest"].width/self.images["rest"].height)
         size = layout["actor_size"]
         if self.current_size != size:
@@ -252,17 +343,22 @@ class Projector:
         padded.paste(face, (pad,pad))
         animated = padded.transform(padded.size, self.Image.Transform.MESH,
                                     mesh(*size, pad, state), self.Image.Resampling.BILINEAR)
+        if opacity < 1.:
+            animated.putalpha(animated.getchannel("A").point(lambda value: value*opacity))
         self.actor_photo = self.ImageTk.PhotoImage(animated)
         self.canvas.itemconfigure(self.actor, image=self.actor_photo)
         self.canvas.coords(self.actor, *layout["actor_center"])
         qr_size = layout["qr_size"]
-        if self.qr_image is not None and time.time() < self.qr_until:
+        if not self.story and self.qr_image is not None and time.time() < self.qr_until:
             if not getattr(self, "qr_photo", None) or self.qr_photo.width() != qr_size:
                 self.qr_photo = self.ImageTk.PhotoImage(self.qr_image.resize((qr_size, qr_size), self.Image.Resampling.NEAREST))
             self.canvas.itemconfigure(self.qr_item, image=self.qr_photo, state="normal")
             self.canvas.coords(self.qr_item, *layout["qr_center"])
         else:
             self.canvas.itemconfigure(self.qr_item, state="hidden")
+        self.finish_frame(frame_started)
+
+    def finish_frame(self, frame_started):
         if self.controls and self.controls.winfo_exists():
             self.control_status.set(self.status+"\n"+self.host.api.public_url)
         self.root.after(max(1, round(1000/30-(time.perf_counter()-frame_started)*1000)), self.frame)
@@ -270,7 +366,10 @@ class Projector:
     def close(self):
         self.closing = True
         import winsound
-        winsound.PlaySound(None, 0)
+        if self.story:
+            self.end_story("cancelled")
+        else:
+            winsound.PlaySound(None, 0)
         self.host.stop.set()
         self.host.thread.join(timeout=2)
         self.root.destroy()

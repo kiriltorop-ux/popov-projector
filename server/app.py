@@ -39,6 +39,10 @@ class Question(BaseModel):
     language: str | None = None
 
 
+class Story(BaseModel):
+    key: str = Field(min_length=8, max_length=80)
+
+
 class Ack(BaseModel):
     state: str
 
@@ -59,9 +63,13 @@ class Store:
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(jobs)")}
         if "error" not in columns:
             self.db.execute("ALTER TABLE jobs ADD COLUMN error TEXT NOT NULL DEFAULT ''")
+        if "kind" not in columns:
+            self.db.execute("ALTER TABLE jobs ADD COLUMN kind TEXT NOT NULL DEFAULT 'question'")
         session_columns = {row[1] for row in self.db.execute("PRAGMA table_info(sessions)")}
         if "browser_hash" not in session_columns:
             self.db.execute("ALTER TABLE sessions ADD COLUMN browser_hash TEXT NOT NULL DEFAULT ''")
+        if "guide" not in session_columns:
+            self.db.execute("ALTER TABLE sessions ADD COLUMN guide TEXT NOT NULL DEFAULT 'popov'")
         if "spent" not in session_columns:
             self.db.execute("ALTER TABLE sessions ADD COLUMN spent INTEGER NOT NULL DEFAULT 0")
             self.db.execute("UPDATE sessions SET spent=(SELECT COUNT(*) FROM jobs WHERE jobs.session=sessions.id AND jobs.state='finished')")
@@ -73,10 +81,13 @@ class Store:
         return [dict(r) for r in self.db.execute(sql, args).fetchall()]
 
 
-def create_app(path=None, provider=None, secret=None, station_key=None, public_url=None):
+def create_app(path=None, provider=None, secret=None, station_key=None, public_url=None, guide=None):
     secret = secret or os.environ["QR_SECRET"]
     station_key = station_key or os.environ["STATION_KEY"]
     public_url = (public_url or os.environ["PUBLIC_URL"]).rstrip("/")
+    guide = guide or os.getenv("POPOV_GUIDE", "popov")
+    if guide not in {"popov", "minin"}:
+        raise ValueError("POPOV_GUIDE must be popov or minin")
     if len(secret) < 32 or len(station_key) < 32:
         raise ValueError("QR_SECRET and STATION_KEY must each have at least 32 characters")
     if not valid_public_url(public_url):
@@ -85,7 +96,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
     if str(db_path) != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     store = Store(db_path)
-    engine = provider or Provider()
+    engine = provider or Provider(guide=guide)
     stop = threading.Event()
     heartbeat = {"at": 0., "online": False}
     asr_busy = threading.Lock()
@@ -119,7 +130,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
         with store.lock:
             rows = store.rows("SELECT * FROM sessions WHERE id=?", (hashlib.sha256(token.encode()).hexdigest(),))
         cookie = request.cookies.get(cookie_name, "")
-        if not rows or not cookie or not hmac.compare_digest(rows[0]["browser_hash"], browser_hash(request, cookie)):
+        if not rows or rows[0]["guide"] != guide or not cookie or not hmac.compare_digest(rows[0]["browser_hash"], browser_hash(request, cookie)):
             raise HTTPException(401, "Откройте разговор в том же браузере или сканируйте свежий QR у проектора.")
         return rows[0]
 
@@ -132,10 +143,14 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
         order = [r["id"] for r in queue]
         turns = [{"key": j["key"], "question": j["question"], "state": j["state"],
                   "answer": j["answer"] if j["state"] == "finished" else "",
-                  "error": j["error"], "ahead": order.index(j["id"]) if j["id"] in order else 0} for j in jobs]
+                  "error": j["error"], "ahead": order.index(j["id"]) if j["id"] in order else 0}
+                 for j in jobs if j["kind"] == "question"]
+        latest = jobs[-1] if jobs else None
+        story = {"key": latest["key"], "state": latest["state"]} if latest and latest["kind"] == "story" else None
         used = s["spent"] + sum(j["state"] not in TERMINAL for j in jobs)
         return {"online": online(), "turns": turns, "remaining": max(0, 3-used),
-                "expires_at": None, "can_send": used < 3, "server_time": time.time(),
+                "story": story, "can_story": guide == "minin",
+                "expires_at": None, "can_send": used < 3 and (story is None or story["state"] in TERMINAL), "server_time": time.time(),
                 "language": s["language"], "voice": s["voice"]}
 
     def process():
@@ -151,7 +166,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
                 if not jobs:
                     continue
                 job = jobs[0]
-                history = store.rows("SELECT question,answer FROM jobs WHERE session=? AND state='finished' ORDER BY created", (job["session"],))
+                history = store.rows("SELECT question,answer FROM jobs WHERE session=? AND kind='question' AND state='finished' ORDER BY created", (job["session"],))
             try:
                 answer = engine.answer(job["question"], history, job["language"])
                 with store.lock:
@@ -187,7 +202,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
     @app.middleware("http")
     async def headers(request, call_next):
         # No CORS: phone and API are served from one HTTPS origin.
-        if networks and request.url.path in ("/api/start", "/api/question", "/api/transcribe"):
+        if networks and request.url.path in ("/api/start", "/api/question", "/api/story", "/api/transcribe"):
             try:
                 address = ipaddress.ip_address(request.client.host)
                 allowed = any(address in network for network in networks)
@@ -235,7 +250,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
             binding = browser_hash(request, cookie)
             # The browser cookie, not a caller-controlled client_id or User-Agent
             # alone, owns the quota for this QR admission window.
-            identity = hashlib.sha256((data.admission + binding).encode()).hexdigest()
+            identity = hashlib.sha256((data.admission + binding + (guide if guide != "popov" else "")).encode()).hexdigest()
             response.set_cookie(cookie_name, cookie, httponly=True, secure=public_url.startswith("https://"),
                                 samesite="strict", path="/")
             token = sign("session:" + identity)
@@ -245,8 +260,8 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
                 return {"token": token, **snapshot(existing[0])}
             if len(store.rows("SELECT id FROM sessions WHERE until>?", (time.time(),))) >= 128:
                 raise HTTPException(429, "Сейчас много посетителей.")
-            store.db.execute("INSERT INTO sessions(id,admission,until,language,voice,browser_hash,spent) VALUES (?,?,?,?,?,?,0)",
-                             (sid, identity, (epoch()+1)*120, data.language, data.voice, binding))
+            store.db.execute("INSERT INTO sessions(id,admission,until,language,voice,browser_hash,guide) VALUES (?,?,?,?,?,?,?)",
+                             (sid, identity, (epoch()+1)*120, data.language, data.voice, binding, guide))
             s = store.rows("SELECT * FROM sessions WHERE id=?", (sid,))[0]
         return {"token": token, **snapshot(s)}
 
@@ -269,7 +284,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
             s = store.rows("SELECT * FROM sessions WHERE id=?", (s["id"],))[0]
             previous = store.rows("SELECT * FROM jobs WHERE session=? AND key=?", (s["id"], data.key))
             if previous:
-                if previous[0]["question"] != text:
+                if previous[0]["kind"] != "question" or previous[0]["question"] != text:
                     raise HTTPException(409, "Этот идентификатор уже использован.")
                 return snapshot(s)
             if not online():
@@ -289,6 +304,28 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
                 s["language"] = data.language
             store.db.execute("INSERT INTO jobs(id,session,key,question,state,created,updated) VALUES(?,?,?,?,?,?,?)",
                              (secrets.token_hex(16), s["id"], data.key, text, "generating", now, now))
+        return snapshot(s)
+
+    @app.post("/api/story")
+    def story(request: Request, data: Story):
+        s = session(request)
+        if guide != "minin":
+            raise HTTPException(404, "Для этого героя рассказ недоступен.")
+        with store.lock:
+            previous = store.rows("SELECT kind FROM jobs WHERE session=? AND key=?", (s["id"], data.key))
+            if previous:
+                if previous[0]["kind"] != "story":
+                    raise HTTPException(409, "Этот идентификатор уже использован.")
+                return snapshot(s)
+            if not online():
+                raise HTTPException(503, "Проектор не на связи.")
+            if store.rows("SELECT spent FROM sessions WHERE id=?", (s["id"],))[0]["spent"] >= 3:
+                raise HTTPException(409, "Три запроса использованы. Отсканируйте следующий QR-код.")
+            if store.rows("SELECT 1 FROM jobs WHERE state NOT IN ('finished','failed','cancelled') LIMIT 1"):
+                raise HTTPException(409, "Проектор занят. Дождитесь окончания показа или ответа.")
+            now = time.time()
+            store.db.execute("INSERT INTO jobs(id,session,key,question,kind,state,created,updated) VALUES(?,?,?,?,?,?,?,?)",
+                             (secrets.token_hex(16), s["id"], data.key, "", "story", "queued", now, now))
         return snapshot(s)
 
     @app.post("/api/transcribe")
@@ -341,10 +378,10 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
                     job = pending[0]
                     store.db.execute("UPDATE jobs SET state='delivered',updated=? WHERE id=?", (time.time(), job["id"]))
             until = (epoch()+1)*120
-            result = {"url": public_url + "/popov.html#join=" + qr_token(), "expires_at": until}
+            result = {"url": public_url + "/popov.html#join=" + qr_token(), "expires_at": until, "guide": guide}
             if job:
                 result["job"] = {"id": job["id"], "text": job["answer"], "expiry": job["created"]+300,
-                                 **json.loads(job["payload"])}
+                                 **({"story": guide} if job["kind"] == "story" else json.loads(job["payload"]))}
             return result
 
     @app.post("/station/jobs/{job_id}")
@@ -353,7 +390,8 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
         authenticate_station(request)
         if data.state not in {"prepared", "started", *TERMINAL}:
             raise HTTPException(422, "Unknown playback state")
-        with store.lock:
+        with store.lock, store.db:
+            store.db.execute("BEGIN IMMEDIATE")
             rows = store.rows("SELECT state FROM jobs WHERE id=?", (job_id,))
             if not rows:
                 raise HTTPException(404, "Unknown job")
@@ -374,7 +412,7 @@ def create_app(path=None, provider=None, secret=None, station_key=None, public_u
         root = ROOT / "mobile" / "docs"
         if asset in ("", "index.html") or (asset == "popov.html" and "settings" not in request.query_params):
             shell = (root / "index.html").read_text(encoding="utf-8")
-            return HTMLResponse(shell.replace("<head>", '<head><meta name="gorod-station" content="popov">', 1))
+            return HTMLResponse(shell.replace("<head>", f'<head><meta name="gorod-station" content="{guide}">', 1))
         file = (root / asset).resolve()
         if file.is_relative_to(root.resolve()) and file.is_file() and not any(
             part.startswith(".") for part in file.relative_to(root.resolve()).parts
